@@ -7,7 +7,7 @@ from quart import Quart, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 import secrets
-import sys
+import sys, os
 
 from notion_ai.custom_errors import OnServerNotConfigured
 from server_utils.handle_options_data import process_formulary
@@ -23,7 +23,8 @@ dir_path = 'notion-ai-app.log'
 if getattr(sys, 'frozen', False):
     template_folder = os.path.join(sys._MEIPASS, 'templates')
     static_folder = os.path.join(sys._MEIPASS, 'static')
-    tmp = tempfile.mkdtemp()
+    # tmp = tempfile.mkdtemp()
+    tmp = "/tmp"
     dir_path = os.path.join(tmp, 'notion-ai-app.log')
     app_quart = Quart(__name__, template_folder=template_folder, static_folder=static_folder)
 else:
@@ -42,6 +43,19 @@ logging.getLogger('').addHandler(console)
 logging.info("Log file will be saved to temporary path: {0}".format(dir_path))
 
 notion_ai = None
+
+@app_quart.route('/add_url_to_mind_post',methods=["POST"])
+async def add_url_to_mind_post():
+    try:
+        data = await request.get_json()
+        url = data["url"]
+        title = data["title"]
+        collection_index = data["collection_index"] if hasattr(data,"collection_index") else 0
+        notion_ai.set_mind_extension(request)
+        return str(notion_ai.add_url_to_database(url, title, int(collection_index), False))
+    except OnServerNotConfigured as e:
+        logging.error(e)
+        return str(create_json_response(notion_ai, status_code=e.status_code, port=port))
 
 
 @app_quart.route('/add_url_to_mind')
@@ -308,6 +322,10 @@ async def update_notion_tokenv2():
 
 
 @app_quart.route('/')
+async def submit_menu():
+    return await render_template("submit_content.html")
+
+@app_quart.route('/set_options')
 async def show_settings_home_menu():
     return await render_template("options.html")
 
@@ -319,6 +337,8 @@ async def handle_data():
     process_formulary(logging, data)
 
     use_email = data['email'] and data['password']
+    os.environ["notion_id"] =  data['email']
+    os.environ["notion_pwd"] = data['password']
 
     if use_email:
         has_run = notion_ai.run(logging, email=data['email'], password=data['password'])
@@ -340,4 +360,5 @@ if __name__ == "__main__":
     check_update(logging, app_quart.static_folder)
     port = ask_server_port(logging)
     notion_ai = NotionAI(logging, port, app_quart.static_folder)
+    # notion_ai.run(logging, email=data['email'], password=data['password'])
     app_quart.run(host="0.0.0.0", port=port, debug=True)

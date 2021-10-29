@@ -1,3 +1,4 @@
+import os
 from threading import Thread
 
 import validators
@@ -51,8 +52,12 @@ class NotionAI:
                 self.client = NotionClient(token_v2=data['token'])
                 token_v2 = data['token']
             else:
-                print("No token_v2 or email available")
-                return
+                email = os.getenv("notion_id")
+                password = os.getenv("notion_pwd")
+                print(email)
+                self.client = NotionClient(email=email, password=password)
+                print("No token_v2 or email available, use environ variable")
+                # return
 
             self.token_v2 = token_v2
 
@@ -145,7 +150,7 @@ class NotionAI:
 
             self.property_manager.update_properties(self.row, mind_extension_property=get_current_extension_name(
                 self.request_platform))
-
+            # name is title in database of Notion
             if is_local:
                 self.row.name = "{0} from phone".format(content_type.capitalize())
             else:
